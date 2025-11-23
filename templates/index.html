@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>HashLab · Verificación de archivos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+<div class="page">
+    <main class="container">
+        <header class="header">
+            <h1>HashLab</h1>
+            <p>
+                Verifica la integridad de tus archivos generando sus hashes y comparando versiones
+                para saber si han cambiado.
+            </p>
+            <div class="header-tags">
+                <span>Seguridad de información</span>
+                <span>Control de versiones</span>
+                <span>Verificación de evidencias</span>
+            </div>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-container">
+              {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <!-- TARJETA PRINCIPAL -->
+        <section class="card">
+            <div class="card-header-row">
+                <div>
+                    <h2 class="card-title">Selecciona los archivos a analizar</h2>
+                    <p class="card-subtitle">
+                        El archivo 1 es la referencia. El archivo 2 es opcional y se usará para compararlo
+                        contra el primero.
+                    </p>
+                </div>
+                <ul class="steps">
+                    <li><span>1</span>Selecciona archivo 1</li>
+                    <li><span>2</span>(Opcional) archivo 2</li>
+                    <li><span>3</span>Genera y revisa hashes</li>
+                </ul>
+            </div>
+
+            <!-- FORMULARIO -->
+            <form method="POST" enctype="multipart/form-data" class="form">
+                <div class="files-grid">
+                    <!-- Archivo 1 -->
+                    <div class="field">
+                        <label for="file1">Archivo 1 <span class="required">*</span></label>
+                        <p class="field-hint">
+                            Archivo original o de referencia. A partir de él se generarán todos los hashes.
+                        </p>
+                        <div class="file-input">
+                            <label class="file-button">
+                                <span class="file-button-text">Elegir archivo</span>
+                                <input type="file" id="file1" name="file1" required>
+                            </label>
+                            <span class="file-name" data-target="file1">
+                                Ningún archivo seleccionado
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Archivo 2 -->
+                    <div class="field">
+                        <label for="file2">Archivo 2 <span class="optional">(opcional)</span></label>
+                        <p class="field-hint">
+                            Versión descargada, enviada o modificada. Se comparará con el archivo 1 usando SHA-256.
+                        </p>
+                        <div class="file-input">
+                            <label class="file-button file-button-secondary">
+                                <span class="file-button-text">Elegir archivo</span>
+                                <input type="file" id="file2" name="file2">
+                            </label>
+                            <span class="file-name" data-target="file2">
+                                Ningún archivo seleccionado
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">
+                        Generar hashes
+                    </button>
+                    <span class="hint">
+                        Los archivos se procesan en memoria y no se almacenan de forma permanente.
+                    </span>
+                </div>
+            </form>
+
+            <!-- 🔽 RESULTADOS: TODO DENTRO DE LA MISMA CARD -->
+            {% if hashes_1 %}
+            <section class="results">
+
+                {# 1) PRIMERO: RESULTADO DE COMPARACIÓN (SHA-256) JUSTO BAJO EL BOTÓN #}
+                {% if hashes_2 %}
+                <div class="compare-block">
+                    <h3>Resultado de comparación (SHA-256)</h3>
+                    {% if same_file %}
+                        <p class="compare compare-ok">
+                            Los archivos parecen ser <strong>idénticos</strong>. El hash SHA-256 coincide en ambos.
+                        </p>
+                        <p class="compare-note">
+                            Un cambio mínimo en el archivo generaría un hash completamente diferente, por lo que la coincidencia
+                            indica que el contenido es el mismo.
+                        </p>
+                    {% else %}
+                        <p class="compare compare-bad">
+                            Los archivos son <strong>diferentes</strong>. El hash SHA-256 no coincide.
+                        </p>
+                        <p class="compare-note">
+                            Un cambio mínimo en el archivo genera un hash completamente diferente. Por eso los hashes se usan
+                            para validar integridad y detectar modificaciones.
+                        </p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {# 2) LUEGO: TABLAS DE HASHES #}
+                <div class="result-row">
+                    <!-- Hashes archivo 1 -->
+                    <div class="result-block">
+                        <h3>Hashes del archivo 1</h3>
+                        <p class="result-filename">{{ filename_1 }}</p>
+                        <p class="result-helper">
+                            Puedes copiar estos valores como “huella digital” del archivo original para tus reportes o controles.
+                        </p>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>Algoritmo</th>
+                                    <th>Hash</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for algo, value in hashes_1.items() %}
+                                    <tr>
+                                        <td>{{ algo|upper }}</td>
+                                        <td><code>{{ value }}</code></td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {% if hashes_2 %}
+                    <!-- Hashes archivo 2 -->
+                    <div class="result-block">
+                        <h3>Hashes del archivo 2</h3>
+                        <p class="result-filename">{{ filename_2 }}</p>
+                        <p class="result-helper">
+                            Compara visualmente los hashes con los del archivo 1. Si coinciden, el contenido es el mismo
+                            para ese algoritmo.
+                        </p>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>Algoritmo</th>
+                                    <th>Hash</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for algo, value in hashes_2.items() %}
+                                    <tr>
+                                        <td>{{ algo|upper }}</td>
+                                        <td><code>{{ value }}</code></td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {# 3) AL FINAL: RESUMEN DEL ANÁLISIS #}
+                <div class="summary">
+                    <h3>Resumen del análisis</h3>
+                    <ul>
+                        <li><strong>Archivo 1:</strong> {{ filename_1 or "No disponible" }}</li>
+                        {% if hashes_2 %}
+                            <li><strong>Archivo 2:</strong> {{ filename_2 or "No disponible" }}</li>
+                            <li>
+                                <strong>Comparación (SHA-256):</strong>
+                                {% if same_file %}
+                                    Los archivos parecen <strong>idénticos</strong>.
+                                {% else %}
+                                    Los archivos son <strong>diferentes</strong>.
+                                {% endif %}
+                            </li>
+                        {% else %}
+                            <li><strong>Comparación:</strong> No se proporcionó archivo 2; solo se generaron hashes del archivo 1.</li>
+                        {% endif %}
+                    </ul>
+                </div>
+
+            </section>
+            {% endif %}
+        </section>
+
+        <!-- 🧠 SECCIÓN INFORMATIVA SOBRE LOS ALGORITMOS -->
+        <section class="info-card">
+            <h2>¿Qué algoritmos de hash se están utilizando?</h2>
+            <p class="info-intro">
+                HashLab calcula varias huellas digitales para cada archivo utilizando algoritmos criptográficos
+                comunes. Cada uno tiene características y usos típicos en diferentes contextos.
+            </p>
+
+            <div class="algo-grid">
+                <article class="algo-item algo-md5">
+                    <h3>MD5</h3>
+                    <p>
+                        Algoritmo clásico y muy rápido, pero ya no se considera seguro para usos criptográficos
+                        sensibles. Aún se utiliza como referencia o para verificaciones simples de integridad.
+                    </p>
+                    <p class="algo-tag">Uso típico: checksums históricos, validación rápida en sistemas legados.</p>
+                </article>
+
+                <article class="algo-item algo-sha1">
+                    <h3>SHA-1</h3>
+                    <p>
+                        Más robusto que MD5, pero también presenta vulnerabilidades. Se ha ido reemplazando en
+                        la mayoría de los sistemas modernos.
+                    </p>
+                    <p class="algo-tag">Uso típico: compatibilidad con sistemas antiguos.</p>
+                </article>
+
+                <article class="algo-item algo-sha256">
+                    <h3>SHA-256</h3>
+                    <p>
+                        Estándar actual muy utilizado para integridad de archivos y firmas digitales. Ofrece
+                        un buen equilibrio entre seguridad y rendimiento.
+                    </p>
+                    <p class="algo-tag">Uso típico: verificación de integridad, firmas, evidencias digitales.</p>
+                </article>
+
+                <article class="algo-item algo-sha512">
+                    <h3>SHA-512</h3>
+                    <p>
+                        Variante de la familia SHA-2 con hashes más largos. Aporta un margen adicional de seguridad,
+                        especialmente útil en ciertos entornos de alta criticidad.
+                    </p>
+                    <p class="algo-tag">Uso típico: sistemas que requieren mayor robustez criptográfica.</p>
+                </article>
+
+                <article class="algo-item algo-blake2">
+                    <h3>BLAKE2b</h3>
+                    <p>
+                        Algoritmo moderno, muy eficiente y con buenas propiedades de seguridad. Diseñado para ser
+                        más rápido que SHA-2 en software.
+                    </p>
+                    <p class="algo-tag">Uso típico: aplicaciones modernas que priorizan rendimiento y seguridad.</p>
+                </article>
+
+                <article class="algo-item algo-sha3">
+                    <h3>SHA3-256</h3>
+                    <p>
+                        Parte de la familia SHA-3, basada en el algoritmo Keccak. Es una alternativa moderna a SHA-2,
+                        con un diseño interno diferente.
+                    </p>
+                    <p class="algo-tag">Uso típico: proyectos que buscan diversificar algoritmos de hash.</p>
+                </article>
+            </div>
+
+            <p class="info-note">
+                Importante: los hashes no son lo mismo que el cifrado. Sirven para verificar integridad, no para
+                ocultar información sensible por sí sola.
+            </p>
+        </section>
+
+        <footer class="footer">
+            <p>HashLab · Herramienta de apoyo para verificación de integridad de archivos.</p>
+        </footer>
+    </main>
+</div>
+
+<script>
+    // Mostrar el nombre del archivo seleccionado en cada campo
+    document.querySelectorAll('input[type="file"]').forEach(input => {
+        input.addEventListener('change', () => {
+            const span = document.querySelector('.file-name[data-target="' + input.id + '"]');
+            if (!span) return;
+            if (input.files && input.files.length > 0) {
+                span.textContent = input.files[0].name;
+            } else {
+                span.textContent = 'Ningún archivo seleccionado';
+            }
+        });
+    });
+</script>
+</body>
+</html>
